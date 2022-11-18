@@ -63,5 +63,10 @@ Folder Path : D:/key/public.key
 - git commit -m "msg"
 - git push 
 
+**Some important Node JS imp**
+- npm set strict-ssl false
+- npm install
+- npm run build
+- npm run watch
 
     
