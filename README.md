@@ -51,19 +51,17 @@ Folder Path : D:/key/public.key
 **Importnant GIT commant**
 - Git clone http:url
 - Git remote -v
-> git remote rm origin
-> git remote add origin origin_path
-> git branch -a
-> git pull origin
-> git checkout dev
-> git pull
-> git checkout -b feature/ticketname
- Add in to folder
-
-> git status or git diff
-> git add .
-> git commit -m "msg"
-> git push 
+- git remote rm origin
+- git remote add origin origin_path
+- git branch -a
+- git pull origin
+- git checkout dev
+- git pull
+- git checkout -b feature/ticketname
+- git status or git diff
+- git add .
+- git commit -m "msg"
+- git push 
 
 
     
