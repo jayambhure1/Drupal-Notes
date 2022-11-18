@@ -47,6 +47,23 @@ Folder Path : D:/key/public.key
   [warning] default does not appear to be a resolvable hostname or IP, not starting browser. You may need to use the --uri option in your command or site alias to indicate the correct URL of this site.
   > default/user/reset/1/1647932882/SM5VX1MvoV473uc5bSPIh4c52HNZDbvku7MShubxTAM/login
 5) Update Default path with new path
-	
+
+**Importnant GIT commant**
+> Git clone http:url
+> Git remote -v
+> git remote rm origin
+> git remote add origin origin_path
+> git branch -a
+> git pull origin
+> git checkout dev
+> git pull
+> git checkout -b feature/ticketname
+ Add in to folder
+
+> git status or git diff
+> git add .
+> git commit -m "msg"
+> git push 
+
 
     
