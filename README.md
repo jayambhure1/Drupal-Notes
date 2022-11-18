@@ -45,7 +45,7 @@ Folder Path : D:/key/public.key
 3) Run Command -> drush uli
 4)Result will come like this way :
   [warning] default does not appear to be a resolvable hostname or IP, not starting browser. You may need to use the --uri option in your command or site alias to indicate the correct URL of this site.
-  > http://default/user/reset/1/1647932882/SM5VX1MvoV473uc5bSPIh4c52HNZDbvku7MShubxTAM/login
+  > default/user/reset/1/1647932882/SM5VX1MvoV473uc5bSPIh4c52HNZDbvku7MShubxTAM/login
 5) Update Default path with new path
 	
 
