@@ -1,0 +1,5 @@
+name: API
+type: module
+description: 'Handles CMACGM POST User API'
+package: API Custom
+core_version_requirement: ^9 || ^10
