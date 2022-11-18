@@ -16,6 +16,9 @@ Folder Path : D:/key/public.key
 **Add this line to show all errors in Drupals**
 $config['system.logging']['error_level'] = 'verbose';
 
+**Close Commit Editor :**
+:wq
+
 **Adding Pach in to module :**
 	1)Download module with verstion using git 
 	2)then create new branch 
