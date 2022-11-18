@@ -49,8 +49,8 @@ Folder Path : D:/key/public.key
 5) Update Default path with new path
 
 **Importnant GIT commant**
-> Git clone http:url
-> Git remote -v
+- Git clone http:url
+- Git remote -v
 > git remote rm origin
 > git remote add origin origin_path
 > git branch -a
