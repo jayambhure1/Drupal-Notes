@@ -6,9 +6,7 @@
 	2) composer require acquia/coding-standards
 
 **How to use PHPCS**
-C:\Users\username\AppData\Roaming\Composer\vendor\bin>phpcs --standard=AcquiaDrupalStrict --extensions=php,module,inc,install,test,profile,theme,info,txt,md,yml "Path of yout Folder"
-
-
+- C:\Users\username\AppData\Roaming\Composer\vendor\bin>phpcs --standard=AcquiaDrupalStrict --extensions=php,module,inc,install,test,profile,theme,info,txt,md,yml "Path of yout Folder"
 
 
 **For Enbled Module by Default.**
@@ -40,7 +38,7 @@ $config['system.logging']['error_level'] = 'verbose';
 	5) Then Enter -> Yes
 	6) for checking this file open cmacgm/config
 
-**Bypass SSO Using Drush **
+**Bypass SSO Using Drush**
 	1) C:\xampp\htdocs\cmacgm  here open git bash and run below
 	2) alias drush="vendor//drush//drush//drush.bat"
     	3) Run Command -> drush uli
