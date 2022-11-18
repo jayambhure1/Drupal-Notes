@@ -24,7 +24,7 @@ $config['system.logging']['error_level'] = 'verbose';
 :wq
 
 **Adding Pach in to module :**
-	1)Download module with verstion using git 
+1)Download module with verstion using git 
 	2)then create new branch 
 	3)Add your changes in new repo
 	4)Then git hub
