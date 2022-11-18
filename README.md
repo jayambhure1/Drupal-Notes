@@ -69,4 +69,12 @@ Folder Path : D:/key/public.key
 - npm run build
 - npm run watch
 
+GIT Rebase comments
+git checkout dev
+git pull
+git checkout feature/***
+git pull
+git merge dev
+git push
+
     
