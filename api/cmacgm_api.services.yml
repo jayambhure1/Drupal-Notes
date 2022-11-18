@@ -1,0 +1,11 @@
+# Services.
+services:
+  api.rest_subscriber:
+    class: Drupal\api\Routing\RestAccessDeniedEvents
+    tags:
+      - { name: "event_subscriber" }
+
+  # API Action service.
+  api.create_user:
+    class: Drupal\api\Service\CreateUserService
+    arguments: ["@entity_type.manager", "@date.formatter"]
