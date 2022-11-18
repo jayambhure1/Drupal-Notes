@@ -1,0 +1,10 @@
+# create user API
+api.create_user:
+  path: "createUser"
+  defaults:
+    { _controller: '\Drupal\api\Controller\APIController::createUser' }
+  methods: [POST]
+  requirements:
+    _role: "manager"
+  options:
+    _auth: ["oauth2"]
