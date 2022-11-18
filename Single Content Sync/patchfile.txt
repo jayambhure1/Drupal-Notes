@@ -1,0 +1,696 @@
+diff --git single_content_sync.links.menu.yml single_content_sync.links.menu.yml
+index 651c590..81985f1 100644
+--- single_content_sync.links.menu.yml
++++ single_content_sync.links.menu.yml
+@@ -9,3 +9,9 @@ single_content_sync.config_settings:
+   description: 'Administer Single Content Sync settings.'
+   parent: system.admin_config_content
+   route_name: single_content_sync.config_settings
++
++single_content_sync.settings:
++  title: 'Import Export settings'
++  route_name: single_content_sync.settings
++  description: 'Enble and Disable Import and Export functionality'
++  parent: system.admin_config_content
+\ No newline at end of file
+diff --git single_content_sync.permissions.yml single_content_sync.permissions.yml
+index 15ee10f..99a2692 100644
+--- single_content_sync.permissions.yml
++++ single_content_sync.permissions.yml
+@@ -9,3 +9,6 @@ permission_callbacks:
+ 
+ administer single content sync:
+   title: 'Administer Single Content Sync settings'
++
++administer import export settings:
++  title: 'Administer Import Export Settings'
+diff --git single_content_sync.routing.yml single_content_sync.routing.yml
+index ea9e855..b486989 100644
+--- single_content_sync.routing.yml
++++ single_content_sync.routing.yml
+@@ -30,5 +30,13 @@ single_content_sync.config_settings:
+   requirements:
+     _permission: 'administer single content sync'
+ 
++single_content_sync.settings:
++  path: /admin/config/import-export-settings
++  defaults:
++    _title: 'Import Export Content Settings'
++    _form: \Drupal\single_content_sync\Form\ContentSettingsForm
++  requirements:
++    _permission: 'administer import export settings'
++
+ route_callbacks:
+   - '\Drupal\single_content_sync\Routing\ContentExportRoutes::routes'
+diff --git src/ContentExporter.php src/ContentExporter.php
+index bfd1e03..b178481 100644
+--- src/ContentExporter.php
++++ src/ContentExporter.php
+@@ -20,6 +20,9 @@ use Drupal\node\NodeInterface;
+ use Drupal\taxonomy\TermInterface;
+ use Drupal\user\UserInterface;
+ 
++/**
++ *
++ */
+ class ContentExporter implements ContentExporterInterface {
+ 
+   use StringTranslationTrait;
+@@ -181,6 +184,7 @@ class ContentExporter implements ContentExporterInterface {
+     $output = [
+       'uuid' => $entity->uuid(),
+       'entity_type' => $entity->getEntityTypeId(),
++      'group_id' => $this->exportGroupId($entity->id()),
+       'bundle' => $entity->bundle(),
+       'base_fields' => $this->exportBaseValues($entity),
+       'custom_fields' => $this->exportCustomValues($entity),
+@@ -516,4 +520,21 @@ class ContentExporter implements ContentExporterInterface {
+     return $value;
+   }
+ 
++  /**
++   * {@inheritdoc}
++   */
++  public function exportGroupId($nodeId) {
++    $database = \Drupal::database();
++    $query = $database->select('group_content_field_data', 'gc');
++    $query->condition('gc.entity_id', $nodeId, '=');
++    $query->range(0, 1);
++    $query->fields('gc', ['gid']);
++    $result = $query->execute();
++    $gid = NULL;
++    foreach ($result as $record) {
++      $gid = $record->gid;
++    }
++    return $gid;
++  }
++
+ }
+diff --git src/ContentFileGenerator.php src/ContentFileGenerator.php
+index 5cef155..5d2a4cf 100644
+--- src/ContentFileGenerator.php
++++ src/ContentFileGenerator.php
+@@ -3,11 +3,14 @@
+ namespace Drupal\single_content_sync;
+ 
+ use Drupal\Core\Archiver\ArchiverInterface;
+-use Drupal\Core\File\FileSystemInterface;
+ use Drupal\Core\Entity\FieldableEntityInterface;
++use Drupal\Core\File\FileSystemInterface;
+ use Drupal\Core\TempStore\PrivateTempStore;
+ use Drupal\file\FileInterface;
+ 
++/**
++ *
++ */
+ class ContentFileGenerator implements ContentFileGeneratorInterface {
+ 
+   /**
+@@ -63,7 +66,7 @@ class ContentFileGenerator implements ContentFileGeneratorInterface {
+   public function generateYamlFile(FieldableEntityInterface $entity, bool $extract_translations = FALSE): FileInterface {
+     $output = $this->contentExporter->doExportToYml($entity, $extract_translations);
+     $default_scheme = $this->contentSyncHelper->getDefaultFileScheme();
+-    $directory = "{$default_scheme}://export";
++    $directory = "private://export";
+     $file_name = $this->contentSyncHelper->generateContentFileName($entity);
+     $this->contentSyncHelper->prepareFilesDirectory($directory);
+ 
+@@ -133,7 +136,7 @@ class ContentFileGenerator implements ContentFileGeneratorInterface {
+    */
+   protected function generateEmptyZipFile(string $name): FileInterface {
+     $default_scheme = $this->contentSyncHelper->getDefaultFileScheme();
+-    $directory = "{$default_scheme}://export/zip";
++    $directory = "private://export/zip";
+     $this->contentSyncHelper->prepareFilesDirectory($directory);
+ 
+     return $this->contentSyncHelper->saveFileContentTemporary('', "{$directory}/{$name}.zip");
+@@ -152,7 +155,9 @@ class ContentFileGenerator implements ContentFileGeneratorInterface {
+       // Add file to the zip.
+       $file_full_path = $this->fileSystem->realpath($file_uri);
+       $file_relative_path = explode('://', $file_uri)[1];
+-      $zip->getArchive()->addFile($file_full_path, "assets/{$file_relative_path}");
++      if ($file_full_path && $file_relative_path) {
++        $zip->getArchive()->addFile($file_full_path, "assets/{$file_relative_path}");
++      }
+     }
+ 
+     // Clean up the storage after we exported assets to the zip.
+diff --git src/ContentImporter.php src/ContentImporter.php
+index 4cf5e2a..a6d7f24 100644
+--- src/ContentImporter.php
++++ src/ContentImporter.php
+@@ -14,7 +14,12 @@ use Drupal\Core\StringTranslation\StringTranslationTrait;
+ use Drupal\Core\TypedData\TranslatableInterface;
+ use Drupal\file\FileRepositoryInterface;
+ use Drupal\layout_builder\Plugin\Block\InlineBlock;
++use \Drupal\group\Entity\Group;
+ 
++
++/**
++ *
++ */
+ class ContentImporter implements ContentImporterInterface {
+ 
+   use StringTranslationTrait;
+@@ -91,6 +96,7 @@ class ContentImporter implements ContentImporterInterface {
+     $this->fileSystem = $file_system;
+     $this->fileRepository = $file_repository;
+     $this->contentSyncHelper = $content_sync_helper;
++    $this->nodeTypeStorage = $this->entityTypeManager->getStorage('node_type');
+   }
+ 
+   /**
+@@ -116,18 +122,63 @@ class ContentImporter implements ContentImporterInterface {
+     // Check if there is an existing entity with the identical uuid.
+     $entity = $this->entityRepository->loadEntityByUuid($content['entity_type'], $content['uuid']);
+ 
++    if ($content['entity_type'] == 'node') {
++      $nids = \Drupal::entityQuery('node')->condition('field_static_id', $content['custom_fields']['field_static_id'][0]['value'])->execute();
++      $contentExist = 0;
++      if ($nids) {
++        foreach ($nids as $nodeId) {
++          $gids = \Drupal::database()->select('group_content_field_data', 'gc')
++            ->condition('gc.entity_id', $nodeId, '=')
++            ->range(0, 1)->fields('gc', ['gid'])->execute();
++          foreach ($gids as $group) {
++            if ($group->gid == $content['group_id']) {
++              $entity = \Drupal::entityTypeManager()->getStorage('node')->load($nodeId);
++              $contentExist = 1;
++              break;
++            }
++          }
++          if ($contentExist == 1) {
++            break;
++          }
++        }
++        if ($contentExist != 1) {
++          $key = array_key_first($nids);
++          $entity = \Drupal::entityTypeManager()->getStorage('node')->load($nids[$key]);
++        }
++      }
++      else {
++        $entity = $this->entityRepository->loadEntityByUuid($content['entity_type'], $content['uuid']);
++      }
++    }
++    else {
++      $entity = $this->entityRepository->loadEntityByUuid($content['entity_type'], $content['uuid']);
++    }
++
+     // If not, create a new instance of the entity.
++    $entityNotExist = 0;
+     if (!$entity) {
+       $values = [
+         'uuid' => $content['uuid'],
++		'title' => $content['base_fields']['title'],
+       ];
+       if ($bundle_key = $definition->getKey('bundle')) {
+         $values[$bundle_key] = $content['bundle'];
+       }
+ 
++      $entityNotExist = 1;
+       $entity = $storage->create($values);
+     }
+ 
++    if ($content['entity_type'] == 'node') {
++      $entity->setPublished(TRUE);
++      $entity->set('moderation_state', 'pending');
++      $entity->save();
++      if ($content['group_id'] != NULL && $entityNotExist == 1) {
++        $group = Group::load($content['group_id']);
++        $group->addContent($entity, 'group_node:' . $content['bundle']);
++      }
++    }
++
+     switch ($content['entity_type']) {
+       case 'node':
+         if (isset($content['base_fields']['author']) && ($account = user_load_by_mail($content['base_fields']['author']))) {
+@@ -161,6 +212,7 @@ class ContentImporter implements ContentImporterInterface {
+         break;
+     }
+ 
++    // Adding the content into group and moderation state to be pending.
+     // Import values from base fields.
+     $this->importBaseValues($entity, $content['base_fields']);
+ 
+@@ -464,6 +516,20 @@ class ContentImporter implements ContentImporterInterface {
+ 
+     $content = $this->contentSyncHelper->validateYamlFileContent($file_content);
+ 
++    // Checking Content type and set Warning.
++    $content_type_array = \Drupal::state()->get('single_content_sync_settings');
++    $node_types = $this->nodeTypeStorage->loadMultiple();
++    $contentType = "";
++    foreach ($node_types as $node_type) {
++      if ($content['bundle'] == $node_type->id()) {
++        $contentType = $node_type->label();
++      }
++    }
++    if (in_array($content['bundle'], $content_type_array)) {
++      $msg = "Import functionality disable for " . $contentType;
++      throw new \Exception($msg);
++    }
++
+     return $this->doImport($content);
+   }
+ 
+@@ -502,6 +568,21 @@ class ContentImporter implements ContentImporterInterface {
+       if (strpos($zip_file, 'assets') === FALSE) {
+         $content_file_path = $original_file_path;
+ 
++        $file_content = file_get_contents($content_file_path);
++        $content = $this->contentSyncHelper->validateYamlFileContent($file_content);
++        $content_type_array = \Drupal::state()->get('single_content_sync_settings');
++        $node_types = $this->nodeTypeStorage->loadMultiple();
++        $contentType = "";
++        foreach ($node_types as $node_type) {
++          if ($content['bundle'] == $node_type->id()) {
++            $contentType = $node_type->label();
++          }
++        }
++        if (in_array($content['bundle'], $content_type_array)) {
++          $msg = "Import functionality disable for " . $contentType;
++          throw new \Exception($msg);
++        }
++
+         $batch['operations'][] = [
+           '\Drupal\single_content_sync\ContentBatchImporter::batchImportFile',
+           [$original_file_path],
+diff --git src/ContentSyncHelper.php src/ContentSyncHelper.php
+index f4d9e22..32cef74 100644
+--- src/ContentSyncHelper.php
++++ src/ContentSyncHelper.php
+@@ -121,7 +121,7 @@ class ContentSyncHelper implements ContentSyncHelperInterface {
+   public function createImportDirectory(): string {
+     $default_scheme = $this->getDefaultFileScheme();
+     $uuid = $this->uuid->generate();
+-    $import_directory = "{$default_scheme}://import/zip/{$uuid}";
++    $import_directory = "private://import/zip/{$uuid}";
+ 
+     $this->prepareFilesDirectory($import_directory);
+ 
+diff --git src/Form/ContentBulkExportForm.php src/Form/ContentBulkExportForm.php
+index 5093cf1..e498fda 100644
+--- src/Form/ContentBulkExportForm.php
++++ src/Form/ContentBulkExportForm.php
+@@ -7,6 +7,7 @@ use Drupal\Core\Entity\EntityInterface;
+ use Drupal\Core\Form\ConfirmFormBase;
+ use Drupal\Core\Form\FormStateInterface;
+ use Drupal\Core\Link;
++use Drupal\Core\State\State;
+ use Drupal\Core\TempStore\PrivateTempStoreFactory;
+ use Drupal\Core\Url;
+ use Drupal\single_content_sync\ContentFileGeneratorInterface;
+@@ -14,6 +15,13 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
+ 
+ class ContentBulkExportForm extends ConfirmFormBase {
+ 
++  /**
++   * The state store.
++   *
++   * @var \Drupal\Core\State\State
++   */
++  protected $state;
++  
+   /**
+    * The private temp store of the module.
+    *
+@@ -43,8 +51,9 @@ class ContentBulkExportForm extends ConfirmFormBase {
+    * @param \Drupal\single_content_sync\ContentFileGeneratorInterface $file_generator
+    *   The custom file generator to export content.
+    */
+-  public function __construct(PrivateTempStoreFactory $temp_store_factory, ContentFileGeneratorInterface $file_generator, ConfigFactoryInterface $config_factory) {
+-    $this->privateTempStore = $temp_store_factory->get('single_content_sync');
++  public function __construct(State $state,PrivateTempStoreFactory $temp_store_factory, ContentFileGeneratorInterface $file_generator, ConfigFactoryInterface $config_factory) {
++    $this->state = $state;
++	$this->privateTempStore = $temp_store_factory->get('single_content_sync');
+     $this->fileGenerator = $file_generator;
+     $this->configFactory = $config_factory;
+   }
+@@ -54,6 +63,7 @@ class ContentBulkExportForm extends ConfirmFormBase {
+    */
+   public static function create(ContainerInterface $container) {
+     return new static(
++	  $container->get('state'),
+       $container->get('tempstore.private'),
+       $container->get('single_content_sync.file_generator'),
+       $container->get('config.factory')
+@@ -106,6 +116,26 @@ class ContentBulkExportForm extends ConfirmFormBase {
+       $this->messenger()->addError($this->t('The content from the action "Export content" was not found.'));
+       return $this->redirect('system.admin_content');
+     }
++	
++	 // Checking content type and disbled export functionality.
++    $status = 0;
++    $content_type_array = $this->state->get('single_content_sync_settings', '');
++    foreach ($entities as $key => $entity) {
++      $current_entity_type = $entity->type->entity->id();
++      if (in_array($current_entity_type, $content_type_array)) {
++        unset($entities[$key]);
++        $status = 1;
++      }
++    }
++
++    if($status == 1 && empty($entities)){
++      $this->messenger()->addError($this->t("Export functionality disable for ".implode(",",array_filter($content_type_array)). ", Please select another content"));
++      return $this->redirect('system.admin_content');
++    }
++
++    if($status == 1){
++      $this->messenger()->addError($this->t("Export functionality disable for ".implode(",",array_filter($content_type_array)). ", So disabled content not exported."));
++    }
+ 
+     $form['content'] = [
+       '#theme' => 'item_list',
+@@ -138,6 +168,14 @@ class ContentBulkExportForm extends ConfirmFormBase {
+    */
+   public function submitForm(array &$form, FormStateInterface $form_state) {
+     $entities = $this->privateTempStore->get($this->currentUser()->id());
++	
++	$content_type_array = $this->state->get('single_content_sync_settings', '');
++    foreach ($entities as $key => $entity) {
++      $current_entity_type = $entity->type->entity->id();
++      if (in_array($current_entity_type, $content_type_array)) {
++        unset($entities[$key]);
++      }
++    }
+ 
+     // Clean up the storage after successful operation.
+     $this->privateTempStore->delete($this->currentUser()->id());
+diff --git src/Form/ContentExportForm.php src/Form/ContentExportForm.php
+index d3bbcca..ff35623 100644
+--- src/Form/ContentExportForm.php
++++ src/Form/ContentExportForm.php
+@@ -8,9 +8,9 @@ use Drupal\Core\Entity\EntityTypeManagerInterface;
+ use Drupal\Core\Form\FormBase;
+ use Drupal\Core\Form\FormStateInterface;
+ use Drupal\Core\Link;
++use Drupal\Core\State\State;
+ use Drupal\Core\Url;
+ use Drupal\file\FileInterface;
+-use Drupal\node\Plugin\views\filter\Access;
+ use Drupal\single_content_sync\ContentExporterInterface;
+ use Drupal\single_content_sync\ContentFileGeneratorInterface;
+ use Drupal\single_content_sync\ContentSyncHelperInterface;
+@@ -23,6 +23,13 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
+  */
+ class ContentExportForm extends FormBase {
+ 
++  /**
++   * The state store.
++   *
++   * @var \Drupal\Core\State\State
++   */
++  protected $state;
++
+   /**
+    * The content exporter service.
+    *
+@@ -63,7 +70,8 @@ class ContentExportForm extends FormBase {
+    * @param \Drupal\single_content_sync\ContentSyncHelperInterface $content_sync_helper
+    *   The content sync helper.
+    */
+-  public function __construct(ContentExporterInterface $content_exporter, EntityTypeManagerInterface $entity_type_manager, ContentFileGeneratorInterface $file_generator, ContentSyncHelperInterface $content_sync_helper) {
++  public function __construct(State $state, ContentExporterInterface $content_exporter, EntityTypeManagerInterface $entity_type_manager, ContentFileGeneratorInterface $file_generator, ContentSyncHelperInterface $content_sync_helper) {
++    $this->state = $state;
+     $this->contentExporter = $content_exporter;
+     $this->entityTypeManager = $entity_type_manager;
+     $this->fileGenerator = $file_generator;
+@@ -75,6 +83,7 @@ class ContentExportForm extends FormBase {
+    */
+   public static function create(ContainerInterface $container) {
+     return new static(
++      $container->get('state'),
+       $container->get('single_content_sync.exporter'),
+       $container->get('entity_type.manager'),
+       $container->get('single_content_sync.file_generator'),
+@@ -138,6 +147,17 @@ class ContentExportForm extends FormBase {
+     $parameters = $this->getRouteMatch()->getParameters();
+     $entity = $this->contentSyncHelper->getDefaultLanguageEntity($parameters);
+ 
++    // Checking content type and disbled export functionlity.
++    $current_entity_type = $entity->type->entity->id();
++    $content_type_array = $this->state->get('single_content_sync_settings', '');
++    if (in_array($current_entity_type, $content_type_array)) {
++      $msg = "Export functionality Disable for " . $entity->type->entity->label();
++      $this->messenger()->addError($msg);
++      $form['#access'] = FALSE;
++      $form['#markup'] = $msg;
++      return $form;
++    }
++
+     $export_in_yaml = $this->contentExporter->doExportToYml($entity, $extract_translations);
+ 
+     $form['output'] = [
+diff --git src/Form/ContentImportForm.php src/Form/ContentImportForm.php
+index 9b964ea..128f4a3 100644
+--- src/Form/ContentImportForm.php
++++ src/Form/ContentImportForm.php
+@@ -2,8 +2,10 @@
+ 
+ namespace Drupal\single_content_sync\Form;
+ 
++use Drupal\Core\Entity\EntityTypeManagerInterface;
+ use Drupal\Core\Form\FormBase;
+ use Drupal\Core\Form\FormStateInterface;
++use Drupal\Core\State\State;
+ use Drupal\single_content_sync\ContentImporterInterface;
+ use Drupal\single_content_sync\ContentSyncHelperInterface;
+ use Symfony\Component\DependencyInjection\ContainerInterface;
+@@ -15,6 +17,20 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
+  */
+ class ContentImportForm extends FormBase {
+ 
++  /**
++   * The state store.
++   *
++   * @var \Drupal\Core\State\State
++   */
++  protected $state;
++
++  /**
++   * The node type storage.
++   *
++   * @var \Drupal\Core\Entity\EntityTypeManagerInterface
++   */
++  protected $entityTypemanager;
++
+   /**
+    * The content importer service.
+    *
+@@ -32,14 +48,19 @@ class ContentImportForm extends FormBase {
+   /**
+    * ContentImportForm constructor.
+    *
++   * @param \Drupal\Core\State\State $state
++   *   The save key value.
+    * @param \Drupal\single_content_sync\ContentImporterInterface $content_importer
+    *   The content importer service.
+    * @param \Drupal\single_content_sync\ContentSyncHelperInterface $content_sync_helper
+    *   The content sync helper.
+    */
+-  public function __construct(ContentImporterInterface $content_importer, ContentSyncHelperInterface $content_sync_helper) {
++  public function __construct(State $state, EntityTypeManagerInterface $entity_type_manager, ContentImporterInterface $content_importer, ContentSyncHelperInterface $content_sync_helper) {
++    $this->state = $state;
++    $this->entityTypemanager = $entity_type_manager;
+     $this->contentImporter = $content_importer;
+     $this->contentSyncHelper = $content_sync_helper;
++    $this->nodeTypeStorage = $this->entityTypemanager->getStorage('node_type');
+   }
+ 
+   /**
+@@ -47,6 +68,8 @@ class ContentImportForm extends FormBase {
+    */
+   public static function create(ContainerInterface $container) {
+     return new static(
++      $container->get('state'),
++      $container->get('entity_type.manager'),
+       $container->get('single_content_sync.importer'),
+       $container->get('single_content_sync.helper')
+     );
+@@ -67,7 +90,7 @@ class ContentImportForm extends FormBase {
+ 
+     $form['upload_fid'] = [
+       '#type' => 'managed_file',
+-      '#upload_loction' => "{$default_scheme}://import/zip",
++      '#upload_loction' => "private://import/zip",
+       '#upload_validators' => [
+         'file_validate_extensions' => ['zip yml'],
+       ],
+@@ -137,6 +160,22 @@ class ContentImportForm extends FormBase {
+     else {
+       try {
+         $content_array = $this->contentSyncHelper->validateYamlFileContent($form_state->getValue('content'));
++
++        // Checking Content Type those disabled.
++        $content_type_array = $this->state->get('single_content_sync_settings', '');
++        $node_types = $this->nodeTypeStorage->loadMultiple();
++        $contentType = "";
++        foreach ($node_types as $node_type) {
++          if ($content_array['bundle'] == $node_type->id()) {
++            $contentType = $node_type->label();
++          }
++        }
++        if (in_array($content_array['bundle'], $content_type_array)) {
++          $msg = "Import functionality disable for " . $contentType;
++          $this->messenger()->addError($msg);
++          return;
++        }
++
+         $entity = $this->contentImporter->doImport($content_array);
+       }
+       catch (\Exception $e) {
+diff --git src/Form/ContentSettingsForm.php src/Form/ContentSettingsForm.php
+new file mode 100644
+index 0000000..e619225
+--- /dev/null
++++ src/Form/ContentSettingsForm.php
+@@ -0,0 +1,149 @@
++<?php
++
++namespace Drupal\single_content_sync\Form;
++
++use Drupal\Core\Entity\EntityTypeManagerInterface;
++use Drupal\Core\File\FileSystemInterface;
++use Drupal\Core\Form\FormBase;
++use Drupal\Core\Form\FormStateInterface;
++use Drupal\Core\Language\LanguageManagerInterface;
++use Drupal\Core\Messenger\MessengerInterface;
++use Drupal\Core\State\State;
++use Drupal\file\FileRepositoryInterface;
++use Symfony\Component\DependencyInjection\ContainerInterface;
++
++/**
++ * Class used to upload the migration json file.
++ */
++class ContentSettingsForm extends FormBase {
++
++
++  /**
++   * The state store.
++   *
++   * @var \Drupal\Core\State\State
++   */
++  protected $state;
++
++  /**
++   * Messenger service.
++   *
++   * @var \Drupal\Core\Messenger\MessengerInterface
++   */
++  protected $message;
++
++  /**
++   * File System service.
++   *
++   * @var \Drupal\Core\File\FileSystemInterface
++   */
++  protected $fileSystem;
++
++  /**
++   * File repository service.
++   *
++   * @var \Drupal\file\FileRepositoryInterface
++   */
++  protected $fileRepository;
++
++  /**
++   * The node type storage.
++   *
++   * @var \Drupal\Core\Entity\EntityTypeManagerInterface
++   */
++  protected $entityTypemanager;
++
++  /**
++   * The Language manager.
++   *
++   * @var \Drupal\Core\Language\LanguageManagerInterface
++   */
++  protected $languageManager;
++
++  /**
++   * Class constructor.
++   */
++  public function __construct(
++      State $state,
++      MessengerInterface $message,
++      FileSystemInterface $file_system,
++      FileRepositoryInterface $file_repository,
++      EntityTypeManagerInterface $entity_type_manager,
++      LanguageManagerInterface $language_manager) {
++    $this->state = $state;
++    $this->message = $message;
++    $this->fileSystem = $file_system;
++    $this->fileRepository = $file_repository;
++    $this->entityTypemanager = $entity_type_manager;
++    $this->languageManager = $language_manager;
++    $this->nodeTypeStorage = $this->entityTypemanager->getStorage('node_type');
++    $this->taxonomyTermStorage = $this->entityTypemanager->getStorage('taxonomy_term');
++    $this->fileStorage = $this->entityTypemanager->getStorage('file');
++  }
++
++  /**
++   * {@inheritdoc}
++   */
++  public static function create(ContainerInterface $container) {
++    return new static(
++      $container->get('state'),
++      $container->get('messenger'),
++      $container->get('file_system'),
++      $container->get('file.repository'),
++      $container->get('entity_type.manager'),
++      $container->get('language_manager'),
++    );
++  }
++
++  /**
++   * {@inheritdoc}
++   */
++  public function getFormId() {
++    return 'single_content_sync_settings_form';
++  }
++
++  /**
++   * {@inheritdoc}
++   */
++  public function buildForm(array $form, FormStateInterface $form_state) {
++    $node_types = $this->nodeTypeStorage->loadMultiple();
++    $options = [];
++    foreach ($node_types as $node_type) {
++      $options[$node_type->id()] = $node_type->label();
++    }
++
++    $form['settings'] = [
++      '#type' => 'fieldset',
++      '#collapsible' => TRUE,
++      '#collapsed' => FALSE,
++      '#prefix' => '<div id="generic-wrapper">',
++      '#suffix' => '</div>',
++    ];
++
++    $form['settings']['content_type'] = [
++      '#title' => $this->t('Select the content type'),
++      '#type' => 'checkboxes',
++      '#default_value' => $this->state->get('single_content_sync_settings', '0'),
++      '#description' => $this->t('Select the content type for which the disable import or export functionality.'),
++      '#options' => $options,
++    ];
++
++    $form['actions']['#type'] = 'actions';
++    $form['actions']['submit'] = [
++      '#type'        => 'submit',
++      '#value'       => $this->t('Save configuration'),
++      '#button_type' => 'primary',
++    ];
++
++    return $form;
++  }
++
++  /**
++   * {@inheritdoc}
++   */
++  public function submitForm(array &$form, FormStateInterface $form_state) {
++    $this->state->set('single_content_sync_settings', $form_state->getValue('content_type'));
++    $this->message->addStatus('The configuration options for have been saved.');
++  }
++
++}
