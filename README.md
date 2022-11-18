@@ -75,6 +75,6 @@ Folder Path : D:/key/public.key
 - git checkout feature/***
 - git pull
 - git merge dev
-= git push
+- git push
 
     
