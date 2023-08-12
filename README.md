@@ -83,10 +83,10 @@ Folder Path : D:/key/public.key
 - git push
 
 **GIT Revert**
-> git checkout
-> git pull origin develop
-> git revert commit_id
-> git push origin path
+- git checkout
+- git pull origin develop
+- git revert commit_id
+- git push origin path
 
 **Kint PHP**
 > composer require kint-php/kint --dev
