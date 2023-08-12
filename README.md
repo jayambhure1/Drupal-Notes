@@ -24,19 +24,24 @@ Folder Path : D:/key/public.key
 - :wq
 
 **Adding Pach in to module :**
-1) Download module with verstion using git 
-2) then create new branch 
-3) Add your changes in new repo
-4) Then git hub
+- Open Module Page Like: https://www.drupal.org/project/webform
+- Then click on Version control
+- Then select branch vertion and clone the Repo 
+- Then create new branch and done your changes
+  > git branch branch_name
+- Then create path File 
  > git diff --no-prefix import > content_sync.patch
+- Then added your file in composer.json inside patches
+- Last Run composer update command
+   > composer update drupal/module_name --with-all-dependencies
 		
-**Create config files using drush commad :**
+**Export and Import config files using drush commad :**
 1) C:\xampp\htdocs\cmacgm  here open git bash and run below 
 	> alias drush="vendor//drush//drush//drush.bat"
-2) Run Command -> drush cex
-3) Result : all config list there you done the changes
-4) Then Enter -> Yes
-5) for checking this file open cmacgm/config
+2) Export Command
+   > drush cex
+4) Import Command
+   > drush cim
 
 **Bypass SSO Using Drush**
 > C:\xampp\htdocs\cmacgm  
