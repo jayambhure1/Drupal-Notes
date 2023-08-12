@@ -82,4 +82,16 @@ Folder Path : D:/key/public.key
 - git merge dev
 - git push
 
+**GIT Revert**
+> git checkout
+> git pull origin develop
+> git revert commit_id
+> git push origin path
+
+**Kint PHP**
+> composer require kint-php/kint --dev
+- Add follow codein setting.php
+> if(class_exists(Kint)){
+> \Kint::$depth_limit = 5;
+> }
     
