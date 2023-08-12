@@ -30,15 +30,15 @@ Folder Path : D:/key/public.key
 - Then create new branch and done your changes
   > git branch branch_name
 - Then create path File 
- > git diff --no-prefix import > content_sync.patch
+  > git diff --no-prefix import > content_sync.patch
 - Then added your file in composer.json inside patches
 - Last Run composer update command
-   > composer update drupal/module_name --with-all-dependencies
+  > composer update drupal/module_name --with-all-dependencies
 		
 **Export and Import config files using drush commad :**
-1) C:\xampp\htdocs\cmacgm  here open git bash and run below 
-	> alias drush="vendor//drush//drush//drush.bat"
-2) Export Command
+1) C:\xampp\htdocs\cmacgm  here open git bash and run below
+   > alias drush="vendor//drush//drush//drush.bat"
+3) Export Command
    > drush cex
 4) Import Command
    > drush cim
